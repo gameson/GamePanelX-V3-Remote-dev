@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# GamePanelX
+# Remote scripts v3.0.15
+#
+# Check status of servers (get PID(s), cpu/mem info, time running)
+#
+# -u: Client's gpx username  
+# -i: Server IP Address (x.x.x.x)
+# -p: Server Port
+#
+# Example usage:
+# ./CheckGame -u user123 -i 192.168.10.10 -p 27015
+#
+srv_username=
+srv_ip=
+srv_port=
+
+while getopts "u:i:p:" OPTION
+do
+     case $OPTION in
+         u)
+             srv_username=$OPTARG
+             ;;
+         i)
+             srv_ip=$OPTARG
+             ;;
+         p)
+             srv_port=$OPTARG
+             ;;
+         ?)
+             exit
+             ;;
+     esac
+done
+
+if [[ "$srv_username" == "" || "$srv_ip" == "" || "$srv_port" == "" ]]
+then
+  echo '{"error":"Restart: Required settings were left out"}'
+  exit
+fi
+
+# Check for homedir
+if [ ! -d /usr/local/gpx/users/$srv_username/$srv_ip.$srv_port ]; then
+        echo '{"error":"Restart: Game directory ('$gpxdir') doesnt exist!"}'
+        exit
+else
+	gpxdir=/usr/local/gpx/users/$srv_username/$srv_ip.$srv_port
+fi
+
+# wtf?
+#srv_username=
+#srv_ip=
+#srv_port=
+
+# Restart PID, server PID
+if [ -f $gpxdir/.gpxrespid ]; then
+	res_pid=$(cat $gpxdir/.gpxrespid);
+else
+	res_pid=
+fi
+
+# Parent server PID
+if [ -f $gpxdir/.gpxpid ]; then
+	parent_pid=$(cat $gpxdir/.gpxpid)
+else
+	parent_pid=
+fi
+
+# Child PID, if it exists
+child_pid="$(ps -ef | grep \"$parent_pid\" | grep -v grep | awk '{print $2}' | grep -v \"$parent_pid\")"
+
+# Get CPU and Mem info
+if [ "$child_pid" ]
+then
+	cpuinfo="$(ps -p $child_pid -o %cpu | tail -1)"
+	meminfo="$(ps -p $child_pid -o %mem | tail -1)"
+else
+	cpuinfo="$(ps -p $parent_pid -o %cpu | tail -1)"
+        meminfo="$(ps -p $parent_pid -o %mem | tail -1)"
+fi
+
+# Output JSON response
+echo '{"respid":"'$res_pid'","ppid":"'$parent_pid'","cpid":"'$child_pid'","cpu":"'$cpuinfo'","mem":"'$meminfo'"}'
